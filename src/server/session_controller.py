@@ -2,14 +2,21 @@ import uuid
 from random import choice
 import logging
 import asyncio
+from time import time
 
 from .session import Session
 from .client import Client
 
 
 class SessionController:
+    # Clients will be timed out after 30 seconds.
+    CLIENT_TIMEOUT = 30
+    # 1 tick per second for tick() function.
+    TPS = 1
+
     __sessions: dict[uuid.UUID, Session] = {}
     __pendingClients: dict[uuid.UUID, Client] = {}
+    __afkClientIds: set[uuid.UUID] = set()
     
 
     def create_session(self, client1_id: uuid.UUID, client2_id: uuid.UUID) -> uuid.UUID | None:
@@ -63,8 +70,28 @@ class SessionController:
 
     def generate_client_id(self) -> uuid.UUID:
         return uuid.uuid4()
+
     
+    def is_client_afk(self, client_id: uuid.UUID):
+        return client_id in self.__afkClientIds
+    
+
+    def remove_afk_client(self, client_id: uuid.UUID):
+        return self.__afkClientIds.remove(client_id)
+
+
     async def tick(self):
         while True:
-            print("session_controller: tick()")
-            await asyncio.sleep(1)
+            # Close sessions with clients who have been offline for more than CLIENT_TIMEOUT.
+            current_time = time()
+            sessions_ids_to_close = []
+            for session_id, session in self.__sessions.items():
+                for client_id, client in session.clients:
+                    if client.last_access_time < current_time - SessionController.CLIENT_TIMEOUT:
+                        print("Found afk client")
+                        sessions_ids_to_close.append(session_id)
+                        self.__afkClientIds.add(client_id)
+            for session_id in sessions_ids_to_close:
+                self.__sessions.pop(session_id)
+
+            await asyncio.sleep(1 / SessionController.TPS)

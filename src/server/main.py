@@ -1,13 +1,27 @@
+from time import sleep
 from fastapi import FastAPI, HTTPException, status, BackgroundTasks
 from pydantic import UUID4
 import asyncio
+from contextlib import asynccontextmanager
 
 from .session_controller import SessionController
 from .victory_state import VictoryState
 
 
 session_controller = SessionController()
-app = FastAPI()
+
+
+task_refs = set()
+@asynccontextmanager
+async def test(app: FastAPI):
+    task = asyncio.create_task(session_controller.tick())
+    # Making a strong reference to the task by adding it to the set,
+    # so it doesn't get cleaned by GC.
+    task_refs.add(task)
+    yield
+
+
+app = FastAPI(lifespan = test)
 
 
 def parse_row_col(s: str) -> int | None:
@@ -28,6 +42,13 @@ async def get_client_id():
 
 @app.post("/tryJoinSession")
 async def try_join_session(client_id: UUID4):
+    if session_controller.is_client_afk(client_id):
+        session_controller.remove_afk_client(client_id)
+        raise HTTPException(
+            status.HTTP_408_REQUEST_TIMEOUT,
+            "You have been marked as AFK"
+        )
+
     session_id = session_controller.is_client_in_session(client_id)
     if session_id is not None:
         return { "session_id": session_id }
@@ -64,6 +85,8 @@ async def get_game_state(session_id: UUID4, client_id: UUID4):
         "your_turn": session.is_client_turning(client_id),
         "victory_state": session.victory_state
     }
+
+    session.update_client_access_time(client_id)
 
     return state
 
@@ -115,3 +138,7 @@ async def make_turn(session_id: UUID4, client_id: UUID4, row_col: str, backgroun
     session.update_victory_state()
     if session.victory_state != VictoryState.STILL_PLAYING:
         background_tasks.add_task(restart_session, session_id)
+
+
+if __name__ == "__main__":
+    print("abc")

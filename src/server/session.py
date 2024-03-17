@@ -1,4 +1,5 @@
 from uuid import UUID
+from time import time
 
 from .victory_state import VictoryState
 from .client import Client
@@ -125,6 +126,13 @@ class Session:
     def make_turn(self, row: int, col: int):
         self.__board[row][col] = CellState.X if self.__turning_client_idx == 0 else CellState.O 
         self.__turning_client_idx = (self.__turning_client_idx + 1) % 2
+
+
+    def update_client_access_time(self, client_id: UUID):
+        for playing_client_id, client in self.__clients:
+            if playing_client_id == client_id:
+                client.last_access_time = time()
+                break
 
     
     def reset(self):

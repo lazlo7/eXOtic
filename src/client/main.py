@@ -15,11 +15,13 @@ def request_client_id(server_address: str) -> UUID | None:
     return UUID(client_id_str)
 
 
-def try_join_session(server_address: str, client_id: UUID) -> UUID | None:
+def try_join_session(server_address: str, client_id: UUID) -> UUID | str | None:
     r = requests.post(
         f"{server_address}/tryJoinSession", 
         params = {"client_id": str(client_id)}
     )
+    if r.status_code == 408:
+        return "You have been disconnected from the server for being AFK for too long"
     if r.status_code != 200:
         return None
     session_id_str = r.json()["session_id"]
@@ -98,9 +100,9 @@ def session_loop(session: Session):
         # Fetch information about game state.
         game_state = get_game_state(session)
         if game_state is None:
-            print("Failed to get game state from the server, retrying...")
-            sleep(1)
-            continue
+            print("Server closed the game, returning back to lobby in 5s...")
+            sleep(5)
+            return
 
         your_turn = game_state["your_turn"]
         if prev_your_turn is not None and turn_successful and your_turn == prev_your_turn:
@@ -151,16 +153,21 @@ def main(server_address: str):
     
     while True:
         cycle_index = 0
-        while (session_id := try_join_session(server_address, client_id)) == None:
+        while (session_id := try_join_session(server_address, client_id)) is None:
             cycle = "-\\|/"
             cycle_index = (cycle_index + 1) % len(cycle)
             print(f"Waiting for available players [{cycle[cycle_index]}]", end="\r")
             sleep(1)
 
+        if isinstance(session_id, str):
+            print(session_id)
+            return
+
         print(f"Found game, connecting...")
         session = Session(session_id, client_id, server_address)
         clear_screen()
         session_loop(session)
+        clear_screen()
 
 
 if __name__ == "__main__":
