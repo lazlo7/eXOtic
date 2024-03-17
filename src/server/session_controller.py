@@ -1,0 +1,70 @@
+import uuid
+from random import choice
+import logging
+import asyncio
+
+from .session import Session
+from .client import Client
+
+
+class SessionController:
+    __sessions: dict[uuid.UUID, Session] = {}
+    __pendingClients: dict[uuid.UUID, Client] = {}
+    
+
+    def create_session(self, client1_id: uuid.UUID, client2_id: uuid.UUID) -> uuid.UUID | None:
+        # Remove clients from pending state, checking that they exist by passing None as default.
+        client1 = self.__pendingClients.pop(client1_id, None)
+        if client1 == None:
+            return None
+        client2 = self.__pendingClients.pop(client2_id, None)
+        if client2 == None:
+            return None
+
+        session = Session(client1, client1_id, client2, client2_id)
+        session_id = uuid.uuid4()
+
+        self.__sessions[session_id] = session
+        return session_id
+    
+
+    def get_session(self, session_id: uuid.UUID) -> Session | None:
+        return self.__sessions.get(session_id, None)
+
+
+    def is_client_in_session(self, client_id: uuid.UUID) -> uuid.UUID | None:
+        for session_id, session in self.__sessions.items():
+            for client_in_session_id, _ in session.clients:
+                if client_in_session_id == client_id:
+                    return session_id
+        return None
+
+
+    def add_pending_client(self, client_id: uuid.UUID):
+        # Client is already pending, return.
+        if client_id in self.__pendingClients.keys():
+            return
+        client = Client()
+        self.__pendingClients[client_id] = client
+    
+
+    def find_another_pending_client_id(self, client_id: uuid.UUID) -> uuid.UUID | None:
+        if client_id not in self.__pendingClients.keys():
+            logging.warn(f"find_another_pending_client_id: given client_id ({client_id}) is not pending")
+            return None
+        
+        other_clients_ids = list(self.__pendingClients.keys())
+        other_clients_ids.remove(client_id)
+        if len(other_clients_ids) == 0:
+            return None
+        
+        return choice(other_clients_ids)
+
+
+    def generate_client_id(self) -> uuid.UUID:
+        return uuid.uuid4()
+    
+    async def tick(self):
+        while True:
+            print("session_controller: tick()")
+            await asyncio.sleep(1)
