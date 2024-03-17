@@ -92,6 +92,12 @@ def print_board(board: list[list[int]]):
     print("\n" * 2, end="")
 
 
+def print_stats(wins_n: int, draws_n: int, losses_n: int):
+    pad_left()
+    print(f"Wins/draws/losses: {wins_n}/{draws_n}/{losses_n}")
+    print("\n" * 2, end="")
+
+
 def session_loop(session: Session):
     prev_your_turn = None
     turn_successful = True
@@ -113,7 +119,12 @@ def session_loop(session: Session):
         clear_screen()        
         board = game_state["board"]
         print_board(board)
-        
+
+        wins_n = game_state["wins_n"]
+        draws_n = game_state["draws_n"]
+        losses_n = game_state["losses_n"]
+        print_stats(wins_n, draws_n, losses_n)
+
         victory_state = game_state["victory_state"]
         if victory_state != 0:
             match victory_state:

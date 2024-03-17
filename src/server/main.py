@@ -83,7 +83,10 @@ async def get_game_state(session_id: UUID4, client_id: UUID4):
     state = {
         "board": session.board,
         "your_turn": session.is_client_turning(client_id),
-        "victory_state": session.victory_state
+        "victory_state": session.victory_state,
+        "wins_n": session.get_wins_n(client_id),
+        "losses_n": session.get_losses_n(client_id),
+        "draws_n": session.draws_n
     }
 
     session.update_client_access_time(client_id)
@@ -136,6 +139,7 @@ async def make_turn(session_id: UUID4, client_id: UUID4, row_col: str, backgroun
     
     session.make_turn(row, col)
     session.update_victory_state()
+    session.update_stats()
     if session.victory_state != VictoryState.STILL_PLAYING:
         background_tasks.add_task(restart_session, session_id)
 
